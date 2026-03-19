@@ -85,14 +85,14 @@ if __name__ == '__main__':
         for batch in loader:
             # send the inputs and training annotations to the device
             # TODO: modify line below to get bbox data
-            images, labels = [datum.to(config.DEVICE) for datum in batch]
+            images, bboxes, labels = [datum.to(config.DEVICE) for datum in batch]
 
             # perform a forward pass and calculate the training loss
-            predict = object_detector(images)
+            class_predict, bbox_predict = object_detector(images)
 
             # TODO: add loss term for bounding boxes
-            bbox_loss = 0
-            class_loss = fun.cross_entropy(predict, labels, reduction="sum")
+            bbox_loss = fun.mse_loss(bbox_predict, bboxes, reduction="sum")
+            class_loss = fun.cross_entropy(class_predict, labels, reduction="sum")
             batch_loss = config.BBOXW * bbox_loss + config.LABELW * class_loss
 
             # zero out the gradients, perform backprop & update the weights
@@ -144,7 +144,10 @@ if __name__ == '__main__':
         print(f"Val loss: {val_loss:.8f}, Val accuracy: {val_acc:.8f}")
 
         # TODO: write code to store model with highest accuracy, lowest loss
-        if False:
+        is_better_acc  = prev_val_acc  is None or val_acc  > prev_val_acc
+        is_better_loss = prev_val_loss is None or val_loss < prev_val_loss
+
+        if is_better_acc and is_better_loss:
             prev_val_acc = val_acc
             prev_val_loss = val_loss
 
@@ -167,6 +170,26 @@ if __name__ == '__main__':
     plt.figure()
 
     # TODO: build and save matplotlib plot
+    fig, (ax_loss, ax_acc) = plt.subplots(1, 2, figsize=(12, 5))
+    epochs_range = range(1, config.NUM_EPOCHS + 1)
+ 
+    # --- Loss subplot ---
+    ax_loss.plot(epochs_range, plots['Training loss'],   label='Train loss')
+    ax_loss.plot(epochs_range, plots['Validation loss'], label='Val loss')
+    ax_loss.set_title('Loss over epochs')
+    ax_loss.set_xlabel('Epoch')
+    ax_loss.set_ylabel('Loss')
+    ax_loss.legend()
+ 
+    # --- Accuracy subplot ---
+    ax_acc.plot(epochs_range, plots['Training class accuracy'],   label='Train acc')
+    ax_acc.plot(epochs_range, plots['Validation class accuracy'], label='Val acc')
+    ax_acc.set_title('Classification accuracy over epochs')
+    ax_acc.set_xlabel('Epoch')
+    ax_acc.set_ylabel('Accuracy')
+    ax_acc.legend()
+ 
+    fig.tight_layout()
 
     # save the training plot
     plt.savefig(config.PLOT_PATH)
