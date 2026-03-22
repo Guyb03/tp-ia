@@ -16,10 +16,10 @@ for path in sys.argv[1:]:
         # loop over CSV file rows (filename, startX, startY, endX, endY, label)
         for row in open(path).read().strip().split("\n"):
             # TODO: read bounding box annotations
-            filename, _, _, _, _, label = row.split(',')
+            filename, startX, startY, endX, endY, label = row.split(',')
             filename = os.path.join(config.IMAGES_PATH, label, filename)
             # TODO: add bounding box annotations here
-            data.append((filename, None, None, None, None, label))
+            data.append((filename, startX, startY, endX, endY, label))
     else:
         data.append((path, None, None, None, None, None))
 
@@ -39,7 +39,7 @@ for filename, gt_start_x, gt_start_y, gt_end_x, gt_end_y, gt_label in data:
 
     # predict the bounding box of the object along with the class label
     # TODO: need to retrieve label AND bbox predictions once added in network
-    label_predictions = model(image)
+    label_predictions, bbox_predictions = model(image)
 
     # determine the class label with the largest predicted probability
     label_predictions = torch.nn.Softmax(dim=-1)(label_predictions)
@@ -47,17 +47,30 @@ for filename, gt_start_x, gt_start_y, gt_end_x, gt_end_y, gt_label in data:
     label = config.LABELS[most_likely_label]
 
     # TODO:denormalize bounding box from (0,1)x(0,1) to (0,w)x(0,h)
+    pred_box = bbox_predictions.squeeze(0).cpu().detach()
+    pred_start_x = int(pred_box[0] * w)
+    pred_start_y = int(pred_box[1] * h)
+    pred_end_x   = int(pred_box[2] * w)
+    pred_end_y   = int(pred_box[3] * h)
 
     # draw the ground truth box and class label on the image, if any
     if gt_label is not None:
         cv2.putText(display, 'gt ' + gt_label, (0, h - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 0,  0), 2)
         # TODO: display ground truth bounding box in blue
+        cv2.rectangle(display,
+                      (int(gt_start_x), int(gt_start_y)),
+                      (int(gt_end_x), int(gt_end_y)),
+                      (255, 0, 0), 2)
 
     # draw the predicted bounding box and class label on the image
     cv2.putText(display, label, (0, 15),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
     # TODO: display predicted bounding box, don't forget tp denormalize it!
+    cv2.rectangle(display,
+                (pred_start_x, pred_start_y),
+                (pred_end_x,   pred_end_y),
+                (0, 255, 0), 2)
 
     # show the output image
     cv2.imshow("Output", display)
